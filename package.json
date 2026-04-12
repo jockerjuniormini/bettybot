@@ -1,0 +1,26 @@
+{
+  "name": "betty",
+  "version": "1.0.0",
+  "description": "Betty - Personal AI Agent on Telegram",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.1.2",
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^13.8.0",
+    "googlethis": "^1.8.0",
+    "grammy": "^1.26.0",
+    "groq-sdk": "^0.6.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.10",
+    "@types/node": "^20.14.9",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}
