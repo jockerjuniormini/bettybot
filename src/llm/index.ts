@@ -19,7 +19,7 @@ export interface ChatOptions {
 }
 
 export async function chatCompletion(messages: ChatMessage[], options: ChatOptions = {}) {
-    const defaultModel = 'llama-3.1-70b-versatile';
+    const defaultModel = 'llama-3.3-70b-versatile';
     const groqModel = options.model || defaultModel;
 
     try {

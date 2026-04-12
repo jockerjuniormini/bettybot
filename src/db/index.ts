@@ -113,3 +113,11 @@ export async function clearHistory(userId: number) {
         stmt.run(userId);
     }
 }
+
+export function getDbStatus() {
+    return {
+        type: useFirebase ? 'Firebase Firestore (Cloud)' : 'SQLite (Local)',
+        isConnected: useFirebase ? (!!firestore) : (!!db),
+        path: useFirebase ? 'cloud' : config.dbPath
+    };
+}

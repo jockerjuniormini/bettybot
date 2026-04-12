@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import os from 'os';
 
 const execAsync = promisify(exec);
 
@@ -25,6 +26,11 @@ export async function execute(args: { command: string }, role: string): Promise<
     if (role !== 'admin') {
         console.error(`[ALERTA DE SEGURIDAD] Usuario con rol '${role}' intentó ejecutar comando Mac: ${args.command}`);
         return "ACCESO DENEGADO. Nivel de autorización insuficiente para ejecutar comandos de sistema.";
+    }
+
+    // OS Check for Cloud Deployment
+    if (os.platform() !== 'darwin') {
+        return "ERROR DE ENTORNO: No puedo ejecutar este comando porque Betty está corriendo actualmente en la nube (Linux/Docker) y no tiene acceso físico a tu Mac Mini personal.";
     }
 
     try {

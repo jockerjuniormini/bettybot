@@ -1,6 +1,6 @@
 import { Bot, InputFile } from 'grammy';
 import { config } from './config/env.js';
-import { initDb, clearHistory } from './db/index.js';
+import { initDb, clearHistory, getDbStatus } from './db/index.js';
 import { processUserMessage } from './agent/index.js';
 import { transcribeAudio } from './llm/index.js';
 import { generateSpeech } from './llm/tts.js';
@@ -9,13 +9,14 @@ import path from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import http from 'http';
+import os from 'os';
 
 // 0. Health Check Server for Anti-Sleep (Render/Koyeb)
 const port = parseInt(process.env.PORT || '8080', 10);
 console.log('--- INICIO DE ARRANQUE DE BETTY ---');
 console.log(`PASO 0: Iniciando servidor de pulso en puerto ${port}...`);
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.write('Betty is alive! 🤖');
     res.end();
@@ -52,6 +53,30 @@ bot.command('clear', async (ctx) => {
     const userId = ctx.from!.id;
     await clearHistory(userId);
     await ctx.reply("Mi memoria sobre nuestra conversación ha sido borrada.");
+});
+
+bot.command('status', async (ctx) => {
+    const userId = ctx.from!.id;
+    const dbStatus = getDbStatus();
+    const uptime = Math.floor(process.uptime());
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+
+    const statusMsg = `
+🤖 *Betty Status Report*
+--------------------------
+✅ *Estado:* Operativa
+🕒 *Uptime:* ${hours}h ${minutes}m
+📦 *Entorno:* ${process.env.NODE_ENV || 'development'}
+🖥️ *Host:* ${os.hostname()} (${os.platform()})
+🗄️ *Base de Datos:* ${dbStatus.type}
+📡 *Conexión DB:* ${dbStatus.isConnected ? 'Conectado ✅' : 'Error ❌'}
+🎙️ *TTS:* ${config.elevenLabsApiKey ? 'Activo ✅' : 'Inactivo ❌'}
+🧠 *Model:* ${config.openrouterModel || 'Llama-3.1-70B'}
+--------------------------
+ID Usuario: \`${userId}\`
+    `;
+    await ctx.reply(statusMsg, { parse_mode: 'Markdown' });
 });
 
 // 4.5 Helper function to handle audio
@@ -167,5 +192,12 @@ bot.catch((err) => {
 });
 
 // Handle graceful shutdown
-process.once('SIGINT', () => bot.stop());
-process.once('SIGTERM', () => bot.stop());
+const shutdown = async () => {
+    console.log('--- APAGANDO BETTY ---');
+    await bot.stop();
+    server.close();
+    process.exit(0);
+};
+
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
