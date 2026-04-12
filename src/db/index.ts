@@ -16,10 +16,24 @@ export async function initDb() {
             let credential;
             if (hasFirebaseJson) {
                 try {
-                    const parsed = JSON.parse(config.googleCredentialsJson as string);
-                    credential = admin.credential.cert(parsed);
+                    let jsonContent = config.googleCredentialsJson as string;
+                    // Intenta parsear directamente, si falla intenta Base64
+                    try {
+                        const parsed = JSON.parse(jsonContent);
+                        credential = admin.credential.cert(parsed);
+                    } catch (jsonErr) {
+                        try {
+                            const decoded = Buffer.from(jsonContent, 'base64').toString('utf-8');
+                            const parsed = JSON.parse(decoded);
+                            credential = admin.credential.cert(parsed);
+                            console.log('Credenciales de Firebase cargadas correctamente desde Base64.');
+                        } catch (b64Err) {
+                            console.error('Error: El contenido de GOOGLE_CREDENTIALS_JSON no es un JSON válido ni una cadena Base64 válida.');
+                            throw jsonErr; // Lanza el error original de JSON.parse para el log
+                        }
+                    }
                 } catch (e) {
-                    console.error('Error al parsear GOOGLE_CREDENTIALS_JSON. Asegúrate de que sea un JSON válido.');
+                    console.error('Error al procesar GOOGLE_CREDENTIALS_JSON. Revisa el formato.');
                     throw e;
                 }
             } else {
