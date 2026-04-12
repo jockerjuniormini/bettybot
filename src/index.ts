@@ -118,13 +118,19 @@ bot.on('message:text', async (ctx) => {
     const userId = ctx.from.id;
     const userMessage = ctx.message.text;
 
+    console.log(`[Text] Recibido mensaje de ${userId}: "${userMessage}"`);
+
     // Send typing indicator
     await ctx.replyWithChatAction('typing');
 
     try {
         const userName = ctx.from.first_name || 'Usuario';
         const role = config.telegramAdminIds.includes(userId.toString()) ? 'admin' : 'vip';
+        console.log(`[Agent] Procesando como rol: ${role} para el usuario: ${userName}`);
+        
         const response = await processUserMessage(userId, userName, role, userMessage);
+        
+        console.log(`[Agent] Enviando respuesta a ${userId}`);
         await ctx.reply(response);
     } catch (error: any) {
         console.error('Error processing message:', error);

@@ -23,3 +23,4 @@ export const config = {
     googleCredentialsJson: getEnv('GOOGLE_CREDENTIALS_JSON', false),
     elevenLabsApiKey: getEnv('ELEVENLABS_API_KEY', false),
     elevenLabsVoiceId: getEnv('ELEVENLABS_VOICE_ID', false) || '21m00Tcm4lPqW24C5nsT'
+};
