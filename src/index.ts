@@ -13,7 +13,7 @@ import os from 'os';
 
 // 0. Health Check Server for Anti-Sleep (Render/Koyeb)
 const port = parseInt(process.env.PORT || '8080', 10);
-console.log('--- INICIO DE ARRANQUE DE BETTY ---');
+console.log('--- INICIO DE ARRANQUE DE BETTY ---'); // v1.2.1 stability fix active
 console.log(`PASO 0: Iniciando servidor de pulso en puerto ${port}...`);
 
 const server = http.createServer((req, res) => {
@@ -231,12 +231,30 @@ bot.catch((err) => {
 });
 
 // Handle graceful shutdown
-const shutdown = async () => {
-    console.log('--- APAGANDO BETTY ---');
-    await bot.stop();
-    server.close();
-    process.exit(0);
+let isShuttingDown = false;
+const shutdown = async (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    
+    console.log(`\n--- APAGANDO BETTY (${signal}) ---`);
+    
+    // Safety timeout: force exit if it takes too long
+    const forceExitTimeout = setTimeout(() => {
+        console.log('⚠️ Apagado forzado tras tiempo de espera.');
+        process.exit(0);
+    }, 3000);
+
+    try {
+        await bot.stop();
+        server.close();
+        console.log('✅ Betty se ha despedido correctamente.');
+    } catch (err) {
+        console.error('Error durante el apagado:', err);
+    } finally {
+        clearTimeout(forceExitTimeout);
+        process.exit(0);
+    }
 };
 
-process.once('SIGINT', shutdown);
-process.once('SIGTERM', shutdown);
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
