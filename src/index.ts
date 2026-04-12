@@ -123,25 +123,34 @@ async function handleAudioMessage(ctx: any) {
         // 5. Process as normal message
         const userName = ctx.from.first_name || 'Usuario';
         const role = config.telegramAdminIds.includes(userId.toString()) ? 'admin' : 'vip';
-        const reply = await processUserMessage(userId, userName, role, text);
+        const rawReply = await processUserMessage(userId, userName, role, text);
         
         // 6. Generate Voice Response (optional but recommended if ELEVENLABS_API_KEY is present)
         if (config.elevenLabsApiKey) {
             try {
+                // Clean description for TTS
+                let cleanReply = rawReply;
+                if (rawReply.includes('IMAGEN_GENERADA:')) cleanReply = rawReply.split('IMAGEN_GENERADA:')[0].trim();
+                else if (rawReply.includes('VIDEO_GENERADO:')) cleanReply = rawReply.split('VIDEO_GENERADO:')[0].trim();
+
                 const responseAudioPath = path.join(tempDir, `reply_${file.file_id}.mp3`);
-                await generateSpeech(reply, responseAudioPath);
+                await generateSpeech(cleanReply || "Aquí lo tienes.", responseAudioPath);
                 
                 await ctx.replyWithVoice(new InputFile(responseAudioPath));
                 
                 // Clean up response audio
                 fs.unlinkSync(responseAudioPath);
+
+                // Enviar el medio después de la voz si existe
+                if (rawReply.includes('IMAGEN_GENERADA:') || rawReply.includes('VIDEO_GENERADO:')) {
+                    await sendResponseWithMedia(ctx, rawReply);
+                }
             } catch (ttsError: any) {
                 console.error('Error generando voz:', ttsError);
-                // Fallback to text if TTS fails
-                await ctx.reply(reply);
+                await sendResponseWithMedia(ctx, rawReply);
             }
         } else {
-            await ctx.reply(reply);
+            await sendResponseWithMedia(ctx, rawReply);
         }
 
     } catch (error: any) {
@@ -152,6 +161,36 @@ async function handleAudioMessage(ctx: any) {
 
 bot.on('message:voice', handleAudioMessage);
 bot.on('message:audio', handleAudioMessage);
+
+// 4.6 Helper to send response (handling text + possible media)
+async function sendResponseWithMedia(ctx: any, response: string) {
+    let cleanText = response;
+
+    // Manejo de Imágenes Generadas
+    if (response.includes('IMAGEN_GENERADA:')) {
+        const parts = response.split('IMAGEN_GENERADA:');
+        cleanText = parts[0].trim();
+        const mediaUrl = parts[1].split('|')[0].trim();
+        
+        if (cleanText) await ctx.reply(cleanText);
+        await ctx.replyWithPhoto(new InputFile(new URL(mediaUrl)));
+        return cleanText;
+    }
+
+    // Manejo de Vídeos Generados
+    if (response.includes('VIDEO_GENERADO:')) {
+        const parts = response.split('VIDEO_GENERADO:');
+        cleanText = parts[0].trim();
+        const mediaUrl = parts[1].split('|')[0].trim();
+        
+        if (cleanText) await ctx.reply(cleanText);
+        await ctx.replyWithVideo(new InputFile(new URL(mediaUrl)));
+        return cleanText;
+    }
+
+    await ctx.reply(response);
+    return response;
+}
 
 // 5. Message Handler
 bot.on('message:text', async (ctx) => {
@@ -168,10 +207,10 @@ bot.on('message:text', async (ctx) => {
         const role = config.telegramAdminIds.includes(userId.toString()) ? 'admin' : 'vip';
         console.log(`[Agent] Procesando como rol: ${role} para el usuario: ${userName}`);
         
-        const response = await processUserMessage(userId, userName, role, userMessage);
+        let response = await processUserMessage(userId, userName, role, userMessage);
         
         console.log(`[Agent] Enviando respuesta a ${userId}`);
-        await ctx.reply(response);
+        await sendResponseWithMedia(ctx, response);
     } catch (error: any) {
         console.error('Error processing message:', error);
         await ctx.reply(`Sorry, I encountered an error: ${error.message}`);

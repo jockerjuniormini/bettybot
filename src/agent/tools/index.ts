@@ -1,11 +1,15 @@
 import * as timeTool from './time.js';
 import * as webSearchTool from './webSearch.js';
 import * as macControlTool from './macControl.js';
+import * as imageGenTool from './imageGen.js';
+import * as videoGenTool from './videoGen.js';
 
 export const toolsRegistry = {
     [timeTool.toolDefinition.function.name]: timeTool,
     [webSearchTool.toolDefinition.function.name]: webSearchTool,
-    [macControlTool.toolDefinition.function.name]: macControlTool
+    [macControlTool.toolDefinition.function.name]: macControlTool,
+    [imageGenTool.toolDefinition.function.name]: imageGenTool,
+    [videoGenTool.toolDefinition.function.name]: videoGenTool
 };
 
 export const toolsDefinitions = Object.values(toolsRegistry).map(t => t.toolDefinition);
