@@ -8,6 +8,17 @@ import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
+import http from 'http';
+
+// 0. Health Check Server for Anti-Sleep (Render/Koyeb)
+const port = process.env.PORT || 8080;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.write('Betty is alive! 🤖');
+    res.end();
+}).listen(port, () => {
+    console.log(`Health check server running on port ${port}. This keeps Betty awake.`);
+});
 
 // 1. Initialize SQLite/Firebase Database
 await initDb();

@@ -26,5 +26,8 @@ RUN mkdir -p /app/temp && mkdir -p /app/data
 # Ensure persistent database goes to the data folder so it can be mounted if needed
 ENV DB_PATH=/app/data/memory.db
 
+# Expose port for health checks (Anti-Sleep)
+EXPOSE 8080
+
 # Command to start the application
 CMD ["npm", "start"]
