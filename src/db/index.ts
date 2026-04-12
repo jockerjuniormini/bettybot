@@ -16,7 +16,11 @@ export async function initDb() {
             let credential;
             if (hasFirebaseJson) {
                 try {
-                    let jsonContent = config.googleCredentialsJson as string;
+                    let jsonContent = (config.googleCredentialsJson as string).trim();
+                    // Eliminar posibles comillas accidentales al principio/final si se pegó mal
+                    if (jsonContent.startsWith('"') && jsonContent.endsWith('"')) {
+                        jsonContent = jsonContent.substring(1, jsonContent.length - 1);
+                    }
                     // Intenta parsear directamente, si falla intenta Base64
                     try {
                         const parsed = JSON.parse(jsonContent);
