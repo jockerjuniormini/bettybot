@@ -11,18 +11,22 @@ import { Readable } from 'stream';
 import http from 'http';
 
 // 0. Health Check Server for Anti-Sleep (Render/Koyeb)
-const port = process.env.PORT || 8080;
+const port = parseInt(process.env.PORT || '8080', 10);
+console.log('--- INICIO DE ARRANQUE DE BETTY ---');
+console.log(`PASO 0: Iniciando servidor de pulso en puerto ${port}...`);
+
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.write('Betty is alive! 🤖');
     res.end();
-}).listen(port, () => {
-    console.log(`Health check server running on port ${port}. This keeps Betty awake.`);
+}).listen(port, '0.0.0.0', () => {
+    console.log(`✅ Servidor de pulso escuchando en 0.0.0.0:${port}.`);
 });
 
 // 1. Initialize SQLite/Firebase Database
+console.log('PASO 1: Inicializando Base de Datos (Firebase/SQLite)...');
 await initDb();
-console.log('Database initialized successfully.');
+console.log('✅ Base de Datos inicializada correctamente.');
 
 // 2. Initialize Telegram Bot
 const bot = new Bot(config.telegramBotToken);
