@@ -166,30 +166,46 @@ bot.on('message:audio', handleAudioMessage);
 async function sendResponseWithMedia(ctx: any, response: string) {
     let cleanText = response;
 
-    // Manejo de Imágenes Generadas
-    if (response.includes('IMAGEN_GENERADA:')) {
-        const parts = response.split('IMAGEN_GENERADA:');
-        cleanText = parts[0].trim();
-        const mediaUrl = parts[1].split('|')[0].trim();
-        
-        if (cleanText) await ctx.reply(cleanText);
-        await ctx.replyWithPhoto(new InputFile(new URL(mediaUrl)));
-        return cleanText;
+    // Regex robustas para encontrar todas las URLs de imágenes y vídeos
+    const imageRegex = /IMAGEN_GENERADA:\s*(https?:\/\/[^\s|]+)/g;
+    const videoRegex = /VIDEO_GENERADO:\s*(https?:\/\/[^\s|]+)/g;
+
+    const imageMatches = [...response.matchAll(imageRegex)];
+    const videoMatches = [...response.matchAll(videoRegex)];
+
+    // Limpiar el texto: 
+    // 1. Quitar los marcadores completos hasta el final de la línea o el siguiente separador
+    cleanText = cleanText.replace(/IMAGEN_GENERADA:[^|\n]+(\|[^|\n]*)?/g, '');
+    cleanText = cleanText.replace(/VIDEO_GENERADO:[^|\n]+(\|[^|\n]*)?/g, '');
+    // 2. Quitar descripciones de variaciones tipo [V1], [V2] etc
+    cleanText = cleanText.replace(/\[V\d+\][^\n]+/g, '');
+    cleanText = cleanText.trim();
+
+    if (cleanText) {
+        await ctx.reply(cleanText);
     }
 
-    // Manejo de Vídeos Generados
-    if (response.includes('VIDEO_GENERADO:')) {
-        const parts = response.split('VIDEO_GENERADO:');
-        cleanText = parts[0].trim();
-        const mediaUrl = parts[1].split('|')[0].trim();
-        
-        if (cleanText) await ctx.reply(cleanText);
-        await ctx.replyWithVideo(new InputFile(new URL(mediaUrl)));
-        return cleanText;
+    // Enviar imágenes (solo la URL)
+    for (const match of imageMatches) {
+        const url = match[1];
+        try {
+            await ctx.replyWithPhoto(url);
+        } catch (err) {
+            console.error(`Error enviando foto (${url}):`, err);
+        }
     }
 
-    await ctx.reply(response);
-    return response;
+    // Enviar vídeos (solo la URL)
+    for (const match of videoMatches) {
+        const url = match[1];
+        try {
+            await ctx.replyWithVideo(url);
+        } catch (err) {
+            console.error(`Error enviando vídeo (${url}):`, err);
+        }
+    }
+
+    return cleanText;
 }
 
 // 5. Message Handler
