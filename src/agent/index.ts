@@ -43,6 +43,7 @@ export async function processUserMessage(userId: number, userName: string, role:
     ];
 
     let currentIteration = 0;
+    let accumulatedMedia = '';
     
     // 3. Agent Loop
     while (currentIteration < ITERATION_LIMIT) {
@@ -52,7 +53,6 @@ export async function processUserMessage(userId: number, userName: string, role:
         // Call LLM
         const responseMessage = await chatCompletion(messages, { tools: toolsDefinitions });
         
-        // Add LLM response to messages (could be text or tool calls)
         const assistantMsg: ChatMessage = {
             role: 'assistant',
             content: responseMessage.content,
@@ -66,11 +66,12 @@ export async function processUserMessage(userId: number, userName: string, role:
                 const functionName = toolCall.function.name;
                 const args = toolCall.function.arguments;
                 
-                console.log(`[Agent] Calling tool: ${functionName} with args: ${args}`);
-                
                 const toolResult = await executeTool(functionName, args, role);
                 
-                console.log(`[Agent] Tool result: ${toolResult}`);
+                // Si el resultado contiene marcadores de medios, los acumulamos
+                if (toolResult.includes('IMAGEN_GENERADA:') || toolResult.includes('VIDEO_GENERADO:')) {
+                    accumulatedMedia += '\n' + toolResult;
+                }
                 
                 messages.push({
                     role: 'tool',
@@ -79,10 +80,17 @@ export async function processUserMessage(userId: number, userName: string, role:
                     content: toolResult
                 });
             }
-            // Loop continues so the LLM can generate a response with the tool results
         } else {
             // No tool calls, we have our final response
-            const finalContent = responseMessage.content || "I have no response.";
+            let finalContent = responseMessage.content || "";
+            
+            // Adjuntamos los medios acumulados si el LLM no los incluyó (o para asegurar)
+            if (accumulatedMedia && !finalContent.includes(accumulatedMedia.trim())) {
+                finalContent = `${finalContent}\n${accumulatedMedia}`.trim();
+            }
+
+            if (!finalContent) finalContent = "He procesado tu solicitud.";
+            
             await saveMessage(userId, 'assistant', finalContent);
             return finalContent;
         }

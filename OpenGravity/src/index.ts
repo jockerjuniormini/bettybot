@@ -13,27 +13,45 @@ const server = http.createServer((req, res) => {
     console.log(`✅ Servidor de salud escuchando en el puerto ${config.port}`);
 });
 
-// Helper para enviar medios (Imágenes/Vídeos)
+// Helper para enviar medios (Imágenes/Vídeos) de forma robusta
 async function sendResponseWithMedia(ctx: any, response: string) {
-    const imageMarkers = response.match(/IMAGEN_GENERADA: (https?:\/\/[^\s|]+)/g);
-    const videoMarkers = response.match(/VIDEO_GENERADO: (https?:\/\/[^\s|]+)/g);
+    const imageRegex = /(?:IMAGEN_GENERADA:?\s*|https:\/\/pollinations\.ai\/p\/)(https?:\/\/[^\s|]+)/gi;
+    const videoRegex = /(?:VIDEO_GENERADO:?\s*)(https?:\/\/[^\s|]+)/gi;
 
-    let cleanText = response.replace(/IMAGEN_GENERADA: [^|]+\|[^|\n]+/g, '').trim();
-    cleanText = cleanText.replace(/VIDEO_GENERADO: [^|]+\|[^|\n]+/g, '').trim();
-    cleanText = cleanText.replace(/\[V\d+\].+/g, '').trim();
+    const imageMatches = [...response.matchAll(imageRegex)];
+    const videoMatches = [...response.matchAll(videoRegex)];
+
+    let cleanText = response.replace(/IMAGEN_GENERADA:[^|\n]+(\|[^|\n]*)?/gi, '');
+    cleanText = cleanText.replace(/VIDEO_GENERADO:[^|\n]+(\|[^|\n]*)?/gi, '');
+    cleanText = cleanText.replace(/\[V\d+\][^\n]+/g, '');
+    cleanText = cleanText.trim();
 
     if (cleanText) await ctx.reply(cleanText);
 
-    if (imageMarkers) {
-        for (const marker of imageMarkers) {
-            const url = marker.replace('IMAGEN_GENERADA: ', '').trim();
-            await ctx.replyWithPhoto(new InputFile(new URL(url)));
+    if (imageMatches.length > 0) {
+        try {
+            if (imageMatches.length === 1) {
+                await ctx.replyWithPhoto(imageMatches[0][1]);
+            } else {
+                const mediaGroup = imageMatches.map(m => ({
+                    type: 'photo' as const,
+                    media: m[1]
+                }));
+                await ctx.replyWithMediaGroup(mediaGroup);
+            }
+        } catch (err) {
+            console.error('Error enviando imágenes:', err);
+            await ctx.reply('⚠️ Error al cargar las imágenes. Inténtalo de nuevo.');
         }
     }
-    if (videoMarkers) {
-        for (const marker of videoMarkers) {
-            const url = marker.replace('VIDEO_GENERADO: ', '').trim();
-            await ctx.replyWithVideo(new InputFile(new URL(url)));
+
+    if (videoMatches.length > 0) {
+        for (const match of videoMatches) {
+            try {
+                await ctx.replyWithVideo(match[1]);
+            } catch (err) {
+                console.error('Error enviando vídeo:', err);
+            }
         }
     }
 }
