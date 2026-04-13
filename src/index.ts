@@ -163,13 +163,21 @@ async function handleAudioMessage(ctx: any) {
 bot.on('message:voice', handleAudioMessage);
 bot.on('message:audio', handleAudioMessage);
 
-// Helper para descargar imágenes/vídeos y convertirlos en Buffer para Telegram
+// Helper para descargar medios con validación estricta
 async function downloadMedia(url: string): Promise<Buffer | null> {
     try {
         const response = await axios.get(url, { 
             responseType: 'arraybuffer',
-            timeout: 15000 // Timeout de 15 segundos
+            timeout: 25000 // Aumentamos a 25s por si el servidor de IA es lento
         });
+        
+        // Validación: asegurar que recibimos una imagen o vídeo, no HTML de error
+        const contentType = response.headers['content-type'];
+        if (!contentType || (!contentType.startsWith('image/') && !contentType.startsWith('video/'))) {
+            console.error(`Contenido no válido desde ${url}: ${contentType}`);
+            return null;
+        }
+
         return Buffer.from(response.data);
     } catch (err) {
         console.error(`Error descargando medio desde ${url}:`, err);
@@ -177,18 +185,16 @@ async function downloadMedia(url: string): Promise<Buffer | null> {
     }
 }
 
-// 4.6 Helper to send response (handling text + possible media)
+// Helper para enviar medios con Fallback de seguridad
 async function sendResponseWithMedia(ctx: any, response: string) {
     let cleanText = response;
 
-    // Regex ultra-permisiva para detectar URLs de Pollinations o marcadores
     const imageRegex = /(?:IMAGEN_GENERADA:?\s*|https:\/\/pollinations\.ai\/p\/)(https?:\/\/[^\s|]+)/gi;
     const videoRegex = /(?:VIDEO_GENERADO:?\s*)(https?:\/\/[^\s|]+)/gi;
 
     const imageMatches = [...response.matchAll(imageRegex)];
     const videoMatches = [...response.matchAll(videoRegex)];
 
-    // Limpieza agresiva de texto
     cleanText = cleanText.replace(/IMAGEN_GENERADA:[^|\n]+(\|[^|\n]*)?/gi, '');
     cleanText = cleanText.replace(/VIDEO_GENERADO:[^|\n]+(\|[^|\n]*)?/gi, '');
     cleanText = cleanText.replace(/\[V\d+\][^\n]+/g, '');
@@ -198,35 +204,41 @@ async function sendResponseWithMedia(ctx: any, response: string) {
         await ctx.reply(cleanText);
     }
 
-    // Enviar Imágenes como Álbum (Media Group) si hay más de una
     if (imageMatches.length > 0) {
         await ctx.replyWithChatAction('upload_photo');
-        try {
-            const mediaGroup: any[] = [];
-            for (const match of imageMatches) {
-                const buffer = await downloadMedia(match[1]);
-                if (buffer) {
-                    mediaGroup.push({
-                        type: 'photo' as const,
-                        media: new InputFile(buffer)
-                    });
-                }
-            }
+        const buffers: Buffer[] = [];
+        
+        for (const match of imageMatches) {
+            const buffer = await downloadMedia(match[1]);
+            if (buffer) buffers.push(buffer);
+        }
 
-            if (mediaGroup.length === 1) {
-                await ctx.replyWithPhoto(mediaGroup[0].media);
-            } else if (mediaGroup.length > 1) {
-                await ctx.replyWithMediaGroup(mediaGroup);
-            } else {
-                throw new Error("No se pudo descargar ninguna imagen.");
+        if (buffers.length > 0) {
+            try {
+                if (buffers.length === 1) {
+                    await ctx.replyWithPhoto(new InputFile(buffers[0]));
+                } else {
+                    const mediaGroup = buffers.map(b => ({
+                        type: 'photo' as const,
+                        media: new InputFile(b)
+                    }));
+                    // Intentar enviar como Álbum
+                    try {
+                        await ctx.replyWithMediaGroup(mediaGroup);
+                    } catch (err: any) {
+                        console.warn('Fallo al enviar álbum, reintentando envío individual...', err.message);
+                        // Fallback: enviar una a una si el álbum falla
+                        for (const b of buffers) {
+                            await ctx.replyWithPhoto(new InputFile(b));
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Error final en envío de imágenes:', err);
             }
-        } catch (err) {
-            console.error('Error enviando álbum/foto:', err);
-            await ctx.reply('⚠️ Betty intentó enviarte las fotos, pero Telegram rechazó los enlaces. Probablemente el servidor de imágenes está saturado. Inténtalo de nuevo en unos segundos.');
         }
     }
 
-    // Enviar Vídeos individualmente
     for (const match of videoMatches) {
         const buffer = await downloadMedia(match[1]);
         if (buffer) {
