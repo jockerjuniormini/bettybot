@@ -166,18 +166,16 @@ bot.on('message:audio', handleAudioMessage);
 async function sendResponseWithMedia(ctx: any, response: string) {
     let cleanText = response;
 
-    // Regex robustas para encontrar todas las URLs de imágenes y vídeos
-    const imageRegex = /IMAGEN_GENERADA:\s*(https?:\/\/[^\s|]+)/g;
-    const videoRegex = /VIDEO_GENERADO:\s*(https?:\/\/[^\s|]+)/g;
+    // Regex ultra-permisiva para detectar URLs de Pollinations o marcadores
+    const imageRegex = /(?:IMAGEN_GENERADA:?\s*|https:\/\/pollinations\.ai\/p\/)(https?:\/\/[^\s|]+)/gi;
+    const videoRegex = /(?:VIDEO_GENERADO:?\s*)(https?:\/\/[^\s|]+)/gi;
 
     const imageMatches = [...response.matchAll(imageRegex)];
     const videoMatches = [...response.matchAll(videoRegex)];
 
-    // Limpiar el texto: 
-    // 1. Quitar los marcadores completos hasta el final de la línea o el siguiente separador
-    cleanText = cleanText.replace(/IMAGEN_GENERADA:[^|\n]+(\|[^|\n]*)?/g, '');
-    cleanText = cleanText.replace(/VIDEO_GENERADO:[^|\n]+(\|[^|\n]*)?/g, '');
-    // 2. Quitar descripciones de variaciones tipo [V1], [V2] etc
+    // Limpieza agresiva de texto
+    cleanText = cleanText.replace(/IMAGEN_GENERADA:[^|\n]+(\|[^|\n]*)?/gi, '');
+    cleanText = cleanText.replace(/VIDEO_GENERADO:[^|\n]+(\|[^|\n]*)?/gi, '');
     cleanText = cleanText.replace(/\[V\d+\][^\n]+/g, '');
     cleanText = cleanText.trim();
 
@@ -185,17 +183,25 @@ async function sendResponseWithMedia(ctx: any, response: string) {
         await ctx.reply(cleanText);
     }
 
-    // Enviar imágenes (solo la URL)
-    for (const match of imageMatches) {
-        const url = match[1];
+    // Enviar Imágenes como Álbum (Media Group) si hay más de una
+    if (imageMatches.length > 0) {
         try {
-            await ctx.replyWithPhoto(url);
+            if (imageMatches.length === 1) {
+                await ctx.replyWithPhoto(imageMatches[0][1]);
+            } else {
+                const mediaGroup = imageMatches.map(m => ({
+                    type: 'photo' as const,
+                    media: m[1]
+                }));
+                await ctx.replyWithMediaGroup(mediaGroup);
+            }
         } catch (err) {
-            console.error(`Error enviando foto (${url}):`, err);
+            console.error('Error enviando álbum/foto:', err);
+            await ctx.reply('⚠️ Betty intentó enviarte las fotos, pero Telegram rechazó los enlaces. Probablemente el servidor de imágenes está saturado. Inténtalo de nuevo en unos segundos.');
         }
     }
 
-    // Enviar vídeos (solo la URL)
+    // Enviar Vídeos individualmente
     for (const match of videoMatches) {
         const url = match[1];
         try {
