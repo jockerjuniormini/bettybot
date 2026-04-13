@@ -1,4 +1,5 @@
 import { Bot, InputFile } from 'grammy';
+import axios from 'axios';
 import { config } from './config/env.js';
 import { initDb, clearHistory, getDbStatus } from './db/index.js';
 import { processUserMessage } from './agent/index.js';
@@ -162,6 +163,20 @@ async function handleAudioMessage(ctx: any) {
 bot.on('message:voice', handleAudioMessage);
 bot.on('message:audio', handleAudioMessage);
 
+// Helper para descargar imágenes/vídeos y convertirlos en Buffer para Telegram
+async function downloadMedia(url: string): Promise<Buffer | null> {
+    try {
+        const response = await axios.get(url, { 
+            responseType: 'arraybuffer',
+            timeout: 15000 // Timeout de 15 segundos
+        });
+        return Buffer.from(response.data);
+    } catch (err) {
+        console.error(`Error descargando medio desde ${url}:`, err);
+        return null;
+    }
+}
+
 // 4.6 Helper to send response (handling text + possible media)
 async function sendResponseWithMedia(ctx: any, response: string) {
     let cleanText = response;
@@ -185,15 +200,25 @@ async function sendResponseWithMedia(ctx: any, response: string) {
 
     // Enviar Imágenes como Álbum (Media Group) si hay más de una
     if (imageMatches.length > 0) {
+        await ctx.replyWithChatAction('upload_photo');
         try {
-            if (imageMatches.length === 1) {
-                await ctx.replyWithPhoto(imageMatches[0][1]);
-            } else {
-                const mediaGroup = imageMatches.map(m => ({
-                    type: 'photo' as const,
-                    media: m[1]
-                }));
+            const mediaGroup: any[] = [];
+            for (const match of imageMatches) {
+                const buffer = await downloadMedia(match[1]);
+                if (buffer) {
+                    mediaGroup.push({
+                        type: 'photo' as const,
+                        media: new InputFile(buffer)
+                    });
+                }
+            }
+
+            if (mediaGroup.length === 1) {
+                await ctx.replyWithPhoto(mediaGroup[0].media);
+            } else if (mediaGroup.length > 1) {
                 await ctx.replyWithMediaGroup(mediaGroup);
+            } else {
+                throw new Error("No se pudo descargar ninguna imagen.");
             }
         } catch (err) {
             console.error('Error enviando álbum/foto:', err);
@@ -203,11 +228,13 @@ async function sendResponseWithMedia(ctx: any, response: string) {
 
     // Enviar Vídeos individualmente
     for (const match of videoMatches) {
-        const url = match[1];
-        try {
-            await ctx.replyWithVideo(url);
-        } catch (err) {
-            console.error(`Error enviando vídeo (${url}):`, err);
+        const buffer = await downloadMedia(match[1]);
+        if (buffer) {
+            try {
+                await ctx.replyWithVideo(new InputFile(buffer));
+            } catch (err) {
+                console.error(`Error enviando vídeo:`, err);
+            }
         }
     }
 
