@@ -39,12 +39,12 @@ export async function execute(args: { prompt: string, variations?: number, aspec
 
     const results = prompts.map((p, i) => {
         const seed = Math.floor(Math.random() * 1000000) + i;
-        // Nuevo endpoint con modelo Flux para máxima calidad
-        const imageUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(p)}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true&enhance=true`;
+        // Revertimos al endpoint público que no requiere API KEY
+        const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(p)}?width=${width}&height=${height}&seed=${seed}&nologo=true&enhance=true`;
         return `IMAGEN_GENERADA: ${imageUrl} | [V${i+1}] ${p}`;
     });
     
-    console.log(`[ImageGen] Generadas ${numVariations} variaciones con FLUX para: ${args.prompt}`);
+    console.log(`[ImageGen] Generadas ${numVariations} variaciones (Public Engine) para: ${args.prompt}`);
     
     return results.join('\n\n');
 }

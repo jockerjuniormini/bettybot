@@ -1,4 +1,5 @@
 import { Bot, InputFile } from 'grammy';
+import axios from 'axios';
 import { config } from './config/env.js';
 import { chatCompletion } from './llm/provider.js';
 import http from 'http';
@@ -13,7 +14,18 @@ const server = http.createServer((req, res) => {
     console.log(`✅ Servidor de salud escuchando en el puerto ${config.port}`);
 });
 
-// Helper para enviar medios (Imágenes/Vídeos) de forma robusta
+// Helper para descargar medios de forma robusta
+async function downloadMedia(url: string): Promise<Buffer | null> {
+    try {
+        const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 });
+        return Buffer.from(response.data);
+    } catch (err) {
+        console.error(`Error downloading media: ${url}`, err);
+        return null;
+    }
+}
+
+// Helper para enviar medios (Imágenes/Vídeos) de forma definitiva
 async function sendResponseWithMedia(ctx: any, response: string) {
     const imageRegex = /(?:IMAGEN_GENERADA:?\s*|https:\/\/pollinations\.ai\/p\/)(https?:\/\/[^\s|]+)/gi;
     const videoRegex = /(?:VIDEO_GENERADO:?\s*)(https?:\/\/[^\s|]+)/gi;
@@ -29,28 +41,35 @@ async function sendResponseWithMedia(ctx: any, response: string) {
     if (cleanText) await ctx.reply(cleanText);
 
     if (imageMatches.length > 0) {
+        await ctx.replyWithChatAction('upload_photo');
         try {
-            if (imageMatches.length === 1) {
-                await ctx.replyWithPhoto(imageMatches[0][1]);
-            } else {
-                const mediaGroup = imageMatches.map(m => ({
-                    type: 'photo' as const,
-                    media: m[1]
-                }));
+            const mediaGroup: any[] = [];
+            for (const match of imageMatches) {
+                const buffer = await downloadMedia(match[1]);
+                if (buffer) {
+                    mediaGroup.push({ type: 'photo' as const, media: new InputFile(buffer) });
+                }
+            }
+            if (mediaGroup.length === 1) {
+                await ctx.replyWithPhoto(mediaGroup[0].media);
+            } else if (mediaGroup.length > 1) {
                 await ctx.replyWithMediaGroup(mediaGroup);
             }
         } catch (err) {
-            console.error('Error enviando imágenes:', err);
-            await ctx.reply('⚠️ Error al cargar las imágenes. Inténtalo de nuevo.');
+            console.error('Error sending media group:', err);
+            await ctx.reply('⚠️ Error al descargar las imágenes.');
         }
     }
 
     if (videoMatches.length > 0) {
         for (const match of videoMatches) {
-            try {
-                await ctx.replyWithVideo(match[1]);
-            } catch (err) {
-                console.error('Error enviando vídeo:', err);
+            const buffer = await downloadMedia(match[1]);
+            if (buffer) {
+                try {
+                    await ctx.replyWithVideo(new InputFile(buffer));
+                } catch (err) {
+                    console.error('Error sending video:', err);
+                }
             }
         }
     }

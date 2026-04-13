@@ -19,10 +19,10 @@ export async function execute(args: { prompt: string, variations?: number, aspec
     const prompts = getPromptVariations(args.prompt, numVariations);
     
     // Configuración local (Placeholder para cuando el Mac Studio tenga SD local)
-    // De momento usamos Pollinations con modelo FLUX para máxima calidad
+    // Usamos el endpoint público que no requiere API KEY
     const results = prompts.map((p, i) => {
         const seed = Math.floor(Math.random() * 1000000) + i;
-        const imageUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(p)}?width=1024&height=1024&seed=${seed}&model=flux&nologo=true&enhance=true`;
+        const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(p)}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
         return `IMAGEN_GENERADA: ${imageUrl} | [V${i+1}] ${p}`;
     });
     
